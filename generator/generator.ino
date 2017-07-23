@@ -39,11 +39,6 @@ AD9833 gen( DDS_FSYNC, CRYSTAL_CLOCK );
 #define FREQ_EDITOR_WIDTH 11
 #define FREQ_EDITOR_FRACT 2
 
-#define PHASE_EDITOR_MAX 360UL
-#define PHASE_EDITOR_MIN 0UL
-#define PHASE_EDITOR_WIDTH 5
-#define PHASE_EDITOR_FRACT 1
-
 #define AMP_EDITOR_MAX 100UL
 #define AMP_EDITOR_MIN 0UL
 #define AMP_EDITOR_WIDTH 5
@@ -55,13 +50,13 @@ AD9833 gen( DDS_FSYNC, CRYSTAL_CLOCK );
 char outputEnabled;
 char removeDcOffset;
 double frequency;
-double phase;
 double amplification;
 WaveformType waveform;
 
 typedef enum { NO_EDIT, ENABLED_EDIT, WAVEFORM_EDIT, REMOVEDC_EDIT, FREQ_EDIT, FREQ_SYM_EDIT, AMP_EDIT, AMP_SYM_EDIT, SAVE_EDIT } EditState;
 EditState state = NO_EDIT;
 uint8_t frequencyEditChar, ampEditChar;
+uint8_t scheduleScreenUpdate;
 
 double freqCharMultiplier(uint8_t n) {
     double multiplierLut[ FREQ_EDITOR_WIDTH + 1 ] = { 0, 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1, 0, 0.1, 0.01 };
@@ -94,26 +89,13 @@ void setup(void) {
 
     oldEncoderPosition = 0;
 
-    waveform = SINE_WAVE;
-    removeDcOffset = 1;
-    frequency = 1000000.0;
-    outputEnabled = 1;
-    amplification = 100.0;
-
-    restoreSettings();
-
     gen.Begin();
     gen.EnableOutput(false);
     gen.SetOutputSource(ACTIVE_REGISTER);
-      
-    updateWaveform();
-    updateDcOffsetRemoval();
-    updateFrequency();
 
-    updateOutput();
-    updateAmplification();
-  
     u8g2.begin();
+
+    restoreSettings();
 }
 
 void loop(void) {
@@ -196,7 +178,11 @@ void timerInterrupt(void)
             oldEncoderPosition = newEncoderPosition;
         }  
     }
-    redrawScreen();
+
+    if (scheduleScreenUpdate) {
+        redrawScreen();
+        scheduleScreenUpdate = 0;
+    }
 }
 
 void pushed(void) {
@@ -229,7 +215,6 @@ void pushed(void) {
                                 frequencyEditChar = FREQ_EDITOR_WIDTH;
                                 state = FREQ_SYM_EDIT;
                             } else {
-//                                state = PHASE_EDIT;
                                 state = WAVEFORM_EDIT;
                             };
                                                        break;
@@ -276,6 +261,8 @@ void pushed(void) {
                                 state = NO_EDIT;
                             };                         break;
     }
+
+    scheduleScreenUpdate = 1;
 }
 
 void redrawScreen() {
@@ -332,22 +319,22 @@ void redrawScreen() {
 
 void updateDcOffsetRemoval() {
     digitalWrite( DC_RELAY_PIN, !removeDcOffset );
+    scheduleScreenUpdate = 1;
 }
 
 void updateWaveform() {
     gen.SetWaveform( ACTIVE_REGISTER, waveform );
+    scheduleScreenUpdate = 1;
 }
 
 void updateFrequency() {
     gen.SetFrequency( ACTIVE_REGISTER, frequency );
-}
-
-void updatePhase() {
-    gen.SetPhase( ACTIVE_REGISTER, phase );
+    scheduleScreenUpdate = 1;
 }
 
 void updateOutput() {
     gen.EnableOutput(outputEnabled);
+    scheduleScreenUpdate = 1;
 }
 
 void updateAmplification() {
@@ -357,6 +344,7 @@ void updateAmplification() {
     SPI.transfer( (uint8_t)( 2.55 * amplification ) ); 
     digitalWrite( MCP_CS_PIN, HIGH );
     SPI.endTransaction();
+    scheduleScreenUpdate = 1;
 }
 
 void saveSettings() {
@@ -375,25 +363,27 @@ void saveSettings() {
     eeAddress += sizeof outputEnabled;
 
     EEPROM.put( eeAddress, amplification );
-    eeAddress += sizeof amplification;
 }
 
 void restoreSettings() {
     int eeAddress = 0;
-
     EEPROM.get( eeAddress, frequency );
+    updateFrequency();
+
     eeAddress += sizeof frequency;
-
     EEPROM.get( eeAddress, waveform );
+    updateWaveform();
+
     eeAddress += sizeof waveform;
-
     EEPROM.get( eeAddress, removeDcOffset );
+    updateDcOffsetRemoval();
+
     eeAddress += sizeof removeDcOffset;
-
     EEPROM.get( eeAddress, outputEnabled );
-    eeAddress += sizeof outputEnabled;
+    updateOutput();
 
+    eeAddress += sizeof outputEnabled;
     EEPROM.get( eeAddress, amplification );
-    eeAddress += sizeof amplification;
+    updateAmplification();
 }
 
