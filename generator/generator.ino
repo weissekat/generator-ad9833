@@ -117,22 +117,7 @@ void timerInterrupt(void)
                 case FREQ_EDIT:
                     break;
                 case FREQ_SYM_EDIT:
-                    double newFrequency;
-                    if (clockwise) {
-                        newFrequency = frequency + freqCharMultiplier(frequencyEditChar);
-                        if ( newFrequency <= FREQ_EDITOR_MAX) {
-                            frequency = newFrequency;
-                        } else {
-                            frequency = FREQ_EDITOR_MAX;
-                        }
-                    } else {
-                        newFrequency = frequency - freqCharMultiplier(frequencyEditChar);
-                        if ( newFrequency >= FREQ_EDITOR_MIN) {
-                            frequency = newFrequency;
-                        } else {
-                            frequency = FREQ_EDITOR_MIN;
-                        }
-                    }
+                    frequency = frequency + (clockwise ? 1 : -1) * freqCharMultiplier(frequencyEditChar);
                     updateFrequency();
                     break;
                 case WAVEFORM_EDIT:
@@ -154,22 +139,7 @@ void timerInterrupt(void)
                 case AMP_EDIT:
                     break;
                 case AMP_SYM_EDIT:
-                    double newAmplification;
-                    if (clockwise) {
-                        newAmplification = amplification + ampCharMultiplier(ampEditChar);
-                        if ( newAmplification <= AMP_EDITOR_MAX) {
-                            amplification = newAmplification;
-                        } else {
-                            amplification = AMP_EDITOR_MAX;
-                        }
-                    } else {
-                        newAmplification = amplification - ampCharMultiplier(ampEditChar);
-                        if ( newAmplification >= FREQ_EDITOR_MIN) {
-                            amplification = newAmplification;
-                        } else {
-                            amplification = AMP_EDITOR_MIN;
-                        }
-                    }
+                    amplification = amplification + (clockwise ? 1 : -1) * ampCharMultiplier(ampEditChar);
                     updateAmplification();
                     break;
                 case SAVE_EDIT:
@@ -323,11 +293,23 @@ void updateDcOffsetRemoval() {
 }
 
 void updateWaveform() {
+    switch(waveform) {
+        case SINE_WAVE:        break;
+        case TRIANGLE_WAVE:    break;
+        case SQUARE_WAVE:      break;
+        case HALF_SQUARE_WAVE: break;
+        default: waveform = SINE_WAVE;
+    }
     gen.SetWaveform( ACTIVE_REGISTER, waveform );
     scheduleScreenUpdate = 1;
 }
 
 void updateFrequency() {
+    if ( frequency > FREQ_EDITOR_MAX) {
+        frequency = FREQ_EDITOR_MAX;
+    } else if ( frequency < FREQ_EDITOR_MIN) {
+        frequency = FREQ_EDITOR_MIN;
+    }
     gen.SetFrequency( ACTIVE_REGISTER, frequency );
     scheduleScreenUpdate = 1;
 }
@@ -338,6 +320,11 @@ void updateOutput() {
 }
 
 void updateAmplification() {
+    if ( amplification > AMP_EDITOR_MAX) {
+        amplification = AMP_EDITOR_MAX;
+    } else if (amplification < AMP_EDITOR_MIN) {
+        amplification = AMP_EDITOR_MIN;
+    }
     SPI.beginTransaction( SPISettings( 4000000, MSBFIRST, SPI_MODE0 ) );
     digitalWrite( MCP_CS_PIN, LOW );
     SPI.transfer( B00010001 );
